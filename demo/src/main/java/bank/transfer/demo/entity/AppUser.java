@@ -42,7 +42,6 @@ public class AppUser {
         this.createdAt = LocalDateTime.now();
     }
 
-    // ── Enums ──────────────────────────────────────────────
     public enum Role {
         USER, ADMIN
     }

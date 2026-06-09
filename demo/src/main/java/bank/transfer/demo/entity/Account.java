@@ -41,7 +41,6 @@ public class Account {
         this.createdAt = LocalDateTime.now();
     }
 
-    // ── Enum ───────────────────────────────────────────────
     public enum Status {
         PENDING, ACTIVE, CLOSED
     }
