@@ -1,6 +1,8 @@
 package bank.transfer.demo.service;
 
+import bank.transfer.demo.dto.request.CreateAccountRequest;
 import bank.transfer.demo.dto.request.RegisterRequest;
+import bank.transfer.demo.dto.response.AccountInfoResponse;
 import bank.transfer.demo.dto.response.RegisterResponse;
 import bank.transfer.demo.entity.Account;
 import bank.transfer.demo.entity.AppUser;
@@ -12,10 +14,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class AccountService {
+
+    private static final int MAX_ACCOUNTS_PER_USER = 3;
 
     private final AppUserRepository userRepository;
     private final AccountRepository accountRepository;
@@ -24,15 +29,14 @@ public class AccountService {
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
 
-        if (userRepository.existsByUsername(request.getUsername())) {
+        if (userRepository.existsByUsername(request.getUsername()))
             throw new IllegalArgumentException("Username đã tồn tại: " + request.getUsername());
-        }
-        if (userRepository.existsByEmail(request.getEmail())) {
+
+        if (userRepository.existsByEmail(request.getEmail()))
             throw new IllegalArgumentException("Email đã được sử dụng: " + request.getEmail());
-        }
-        if (accountRepository.existsByAccountNumber(request.getAccountNumber())) {
+
+        if (accountRepository.existsByAccountNumber(request.getAccountNumber()))
             throw new IllegalArgumentException("Số tài khoản đã tồn tại: " + request.getAccountNumber());
-        }
 
         AppUser newUser = AppUser.builder()
                 .username(request.getUsername())
@@ -55,6 +59,60 @@ public class AccountService {
                 newUser.getUsername(),
                 newAccount.getAccountNumber(),
                 newAccount.getStatus().name()
+        );
+    }
+
+    // ── UC_NEW: Mở thêm tài khoản (user đã ACTIVE, tối đa 3) ────────────────
+    @Transactional
+    public AccountInfoResponse createAdditionalAccount(String username,
+                                                       CreateAccountRequest request) {
+
+        AppUser user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalStateException("User không tồn tại"));
+
+        // Chỉ user ACTIVE mới được mở thêm
+        if (user.getStatus() != AppUser.Status.ACTIVE)
+            throw new IllegalArgumentException("Tài khoản user chưa được kích hoạt");
+
+        // Đếm tài khoản hiện có (không tính CLOSED)
+        long currentCount = accountRepository
+                .countByUserIdAndStatusNot(user.getId(), Account.Status.CLOSED);
+
+        if (currentCount >= MAX_ACCOUNTS_PER_USER)
+            throw new IllegalArgumentException(
+                    "Mỗi user chỉ được tối đa " + MAX_ACCOUNTS_PER_USER + " tài khoản");
+
+        if (accountRepository.existsByAccountNumber(request.getAccountNumber()))
+            throw new IllegalArgumentException("Số tài khoản đã tồn tại: " + request.getAccountNumber());
+
+        Account newAccount = Account.builder()
+                .user(user)
+                .accountNumber(request.getAccountNumber())
+                .balance(BigDecimal.ZERO)
+                .status(Account.Status.PENDING)   // vẫn cần admin duyệt
+                .build();
+        accountRepository.save(newAccount);
+
+        return toAccountInfoResponse(newAccount);
+    }
+
+    public List<AccountInfoResponse> getMyAccounts(String username) {
+        AppUser user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalStateException("User không tồn tại"));
+
+        return accountRepository.findByUserId(user.getId())
+                .stream()
+                .map(this::toAccountInfoResponse)
+                .toList();
+    }
+
+    public AccountInfoResponse toAccountInfoResponse(Account account) {
+        return new AccountInfoResponse(
+                account.getId(),
+                account.getAccountNumber(),
+                account.getBalance(),
+                account.getStatus().name(),
+                account.getCreatedAt()
         );
     }
 }

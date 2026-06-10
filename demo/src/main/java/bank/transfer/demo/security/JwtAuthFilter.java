@@ -30,7 +30,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
-        // Không có header hoặc không bắt đầu bằng "Bearer " → bỏ qua
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -41,7 +40,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         try {
             String username = jwtUtil.extractUsername(token);
 
-            // Chưa authenticate trong session này
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
@@ -54,8 +52,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
-        } catch (Exception e) {
-            // Token lỗi / hết hạn → không set authentication, request sẽ bị từ chối
+        } catch (Exception ignored) {
         }
 
         filterChain.doFilter(request, response);

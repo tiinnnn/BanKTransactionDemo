@@ -10,4 +10,6 @@ public interface AccountRepository extends JpaRepository<Account, Integer> {
     Optional<Account> findByAccountNumber(String accountNumber);
     List<Account> findByUserId(Integer userId);
     boolean existsByAccountNumber(String accountNumber);
+
+    long countByUserIdAndStatusNot(Integer userId, Account.Status status);
 }

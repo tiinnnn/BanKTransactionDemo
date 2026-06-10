@@ -19,7 +19,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity          // cho phép dùng @PreAuthorize trên controller
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -33,11 +33,12 @@ public class SecurityConfig {
                 .sessionManagement(sm ->
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-
+                        // ─── Public ──────────────────────────────────────────
                         .requestMatchers("/api/auth/**").permitAll()
-
+                        .requestMatchers("/api/accounts/register").permitAll()
+                        // ─── Admin only ───────────────────────────────────────
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
+                        // ─── User (đã login) ──────────────────────────────────
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
