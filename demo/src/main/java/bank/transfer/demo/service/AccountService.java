@@ -1,6 +1,5 @@
 package bank.transfer.demo.service;
 
-import bank.transfer.demo.dto.request.CreateAccountRequest;
 import bank.transfer.demo.dto.request.RegisterRequest;
 import bank.transfer.demo.dto.response.AccountInfoResponse;
 import bank.transfer.demo.dto.response.RegisterResponse;
@@ -25,7 +24,9 @@ public class AccountService {
     private final AppUserRepository userRepository;
     private final AccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AccountNumberGenerator accountNumberGenerator;
 
+    // ── UC1: Đăng ký lần đầu ────────────────────────────────────────────────
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
 
@@ -34,9 +35,6 @@ public class AccountService {
 
         if (userRepository.existsByEmail(request.getEmail()))
             throw new IllegalArgumentException("Email đã được sử dụng: " + request.getEmail());
-
-        if (accountRepository.existsByAccountNumber(request.getAccountNumber()))
-            throw new IllegalArgumentException("Số tài khoản đã tồn tại: " + request.getAccountNumber());
 
         AppUser newUser = AppUser.builder()
                 .username(request.getUsername())
@@ -47,9 +45,11 @@ public class AccountService {
                 .build();
         userRepository.save(newUser);
 
+        String accountNumber = accountNumberGenerator.generate();
+
         Account newAccount = Account.builder()
                 .user(newUser)
-                .accountNumber(request.getAccountNumber())
+                .accountNumber(accountNumber)
                 .balance(BigDecimal.ZERO)
                 .status(Account.Status.PENDING)
                 .build();
@@ -62,19 +62,16 @@ public class AccountService {
         );
     }
 
-    // ── UC_NEW: Mở thêm tài khoản (user đã ACTIVE, tối đa 3) ────────────────
+    // ── UC_NEW: Mở thêm tài khoản (tối đa 3) ────────────────────────────────
     @Transactional
-    public AccountInfoResponse createAdditionalAccount(String username,
-                                                       CreateAccountRequest request) {
+    public AccountInfoResponse createAdditionalAccount(String username) {
 
         AppUser user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalStateException("User không tồn tại"));
 
-        // Chỉ user ACTIVE mới được mở thêm
         if (user.getStatus() != AppUser.Status.ACTIVE)
             throw new IllegalArgumentException("Tài khoản user chưa được kích hoạt");
 
-        // Đếm tài khoản hiện có (không tính CLOSED)
         long currentCount = accountRepository
                 .countByUserIdAndStatusNot(user.getId(), Account.Status.CLOSED);
 
@@ -82,20 +79,20 @@ public class AccountService {
             throw new IllegalArgumentException(
                     "Mỗi user chỉ được tối đa " + MAX_ACCOUNTS_PER_USER + " tài khoản");
 
-        if (accountRepository.existsByAccountNumber(request.getAccountNumber()))
-            throw new IllegalArgumentException("Số tài khoản đã tồn tại: " + request.getAccountNumber());
+        String accountNumber = accountNumberGenerator.generate();
 
         Account newAccount = Account.builder()
                 .user(user)
-                .accountNumber(request.getAccountNumber())
+                .accountNumber(accountNumber)
                 .balance(BigDecimal.ZERO)
-                .status(Account.Status.PENDING)   // vẫn cần admin duyệt
+                .status(Account.Status.PENDING)
                 .build();
         accountRepository.save(newAccount);
 
         return toAccountInfoResponse(newAccount);
     }
 
+    // ── UC3: Xem tài khoản của mình ─────────────────────────────────────────
     public List<AccountInfoResponse> getMyAccounts(String username) {
         AppUser user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalStateException("User không tồn tại"));
@@ -106,6 +103,7 @@ public class AccountService {
                 .toList();
     }
 
+    // ── Helper ───────────────────────────────────────────────────────────────
     public AccountInfoResponse toAccountInfoResponse(Account account) {
         return new AccountInfoResponse(
                 account.getId(),
